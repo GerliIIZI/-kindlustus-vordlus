@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IIZI Kindlustuse kvaliteedikontroll v7.4-test</title>
+<title>IIZI Kindlustuse kvaliteedikontroll v7.5-test</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -99,7 +99,7 @@ td.diff-val { color: var(--red) !important; }
 <header>
   <div class="logo-row">
     <span class="logo-badge">iizi</span>
-    <span class="badge">KVT · v7.4-test</span>
+    <span class="badge">KVT · v7.5-test</span>
     <span class="badge type" id="type-badge"></span>
   </div>
   <h1>Kindlustuse võrdlustööriist</h1>
@@ -278,6 +278,20 @@ function extractRegistrationMark(t) {
     if (!/[A-ZÄÖÜÕŠŽ]/.test(candidate) || !/\d/.test(candidate)) continue;
     if (/^\d{4}$/.test(candidate)) continue;
     return candidate;
+  }
+
+  // Viimane varuvariant: PDF.js võib tabeli lahtrid anda täiesti teises
+  // järjekorras, nii et registrimärk ei asu sildi lähedal. Eesti tavapärane
+  // registrimärk on 2–3 numbrit + 3 tähte (nt 007BVS). Otsime seda kogu
+  // dokumendist, kuid ainult lühikese eraldiseisva väärtusena, et VIN-i või
+  // isikukoodi mitte ekslikult registrimärgiks võtta.
+  const platePatterns=[
+    /\b(\d{2,3}[A-ZÄÖÜÕŠŽ]{3})\b/i,
+    /\b([A-ZÄÖÜÕŠŽ]{3}\d{2,3})\b/i
+  ];
+  for (const pattern of platePatterns) {
+    const match=t.match(pattern);
+    if (match) return match[1].toUpperCase();
   }
   return null;
 }
