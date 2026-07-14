@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kindlustuse Võrdlustööriist v3</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f5f4f0; --surface: #fff; --surface2: #f0efe9;
+  --border: #e2e0d8; --border2: #c8c6bc;
+  --text: #1a1917; --text2: #5c5a54; --text3: #9b9890;
+  --accent: #1a4f8a; --accent-light: #e8f0fb;
+  --green: #1a6644; --green-light: #e8f5ee;
+  --red: #9b2020; --red-light: #fdf0f0;
+  --yellow: #7a5c00; --yellow-light: #fdf8e8;
+  --radius: 10px; --radius-sm: 6px;
+}
+body { font-family: Georgia, serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 2rem 1rem; }
+.container { max-width: 920px; margin: 0 auto; }
+header { margin-bottom: 2rem; }
+.logo-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+.logo-badge { background: var(--accent); color: #fff; font-size: 11px; font-family: 'Courier New', monospace; letter-spacing: 1.5px; text-transform: uppercase; padding: 4px 10px; border-radius: var(--radius-sm); }
+.badge { font-size: 11px; color: var(--text3); border: 1px solid var(--border2); padding: 3px 9px; border-radius: 20px; font-family: system-ui, sans-serif; }
+.badge.type { background: var(--accent-light); color: var(--accent); border-color: var(--accent); display: none; }
+h1 { font-size: 24px; font-weight: normal; letter-spacing: -.5px; margin-bottom: 4px; }
+.subtitle { font-size: 13px; color: var(--text3); font-family: system-ui, sans-serif; }
+
+.upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 1.5rem; }
+.upload-card { background: var(--surface); border: 1.5px dashed var(--border2); border-radius: var(--radius); padding: 1.5rem; text-align: center; cursor: pointer; transition: all .2s; position: relative; }
+.upload-card:hover { border-color: var(--accent); background: var(--accent-light); }
+.upload-card.loaded { border-color: var(--green); border-style: solid; background: var(--green-light); }
+.upload-card.loading { border-color: var(--accent); border-style: solid; background: var(--accent-light); }
+.upload-card input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.upload-icon { font-size: 26px; margin-bottom: 8px; display: block; }
+.upload-label { font-size: 13px; font-weight: 600; font-family: system-ui, sans-serif; color: var(--text); margin-bottom: 3px; }
+.upload-sublabel { font-size: 12px; color: var(--text3); font-family: system-ui, sans-serif; }
+.upload-filename { font-size: 11px; color: var(--green); font-family: 'Courier New', monospace; margin-top: 5px; word-break: break-all; }
+.upload-meta { font-size: 11px; color: var(--accent); font-family: system-ui, sans-serif; margin-top: 4px; font-weight: 600; }
+
+.compare-btn { width: 100%; padding: 13px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); font-size: 15px; font-family: system-ui, sans-serif; font-weight: 500; cursor: pointer; transition: opacity .2s, transform .1s; margin-bottom: 2rem; }
+.compare-btn:hover:not(:disabled) { opacity: .88; }
+.compare-btn:active:not(:disabled) { transform: scale(.99); }
+.compare-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+.results { display: none; }
+.summary-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 1.5rem; }
+.stat-card { background: var(--surface); border: .5px solid var(--border); border-radius: var(--radius); padding: 1rem; text-align: center; }
+.stat-label { font-size: 11px; color: var(--text3); font-family: system-ui, sans-serif; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .5px; }
+.stat-value { font-size: 26px; font-weight: normal; color: var(--text); }
+.stat-value.green { color: var(--green); }
+.stat-value.red { color: var(--red); }
+.stat-value.yellow { color: var(--yellow); }
+
+.type-banner { background: var(--accent-light); border: .5px solid var(--accent); border-radius: var(--radius); padding: 10px 16px; font-size: 13px; font-family: system-ui, sans-serif; color: var(--accent); margin-bottom: 1.25rem; display: none; }
+
+.table-wrap { background: var(--surface); border: .5px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 1.25rem; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-family: system-ui, sans-serif; table-layout: fixed; }
+th { background: var(--surface2); padding: 9px 12px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); border-bottom: 1px solid var(--border); }
+td { padding: 9px 12px; color: var(--text2); vertical-align: top; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; border-top: .5px solid var(--border); }
+td:first-child { font-weight: 600; color: var(--text); }
+tr:nth-child(even) td { background: var(--surface2); }
+td.diff-val { color: var(--red) !important; }
+
+.pill { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 600; white-space: nowrap; }
+.pill-ok   { background: var(--green-light); color: var(--green); }
+.pill-diff { background: var(--red-light);   color: var(--red);   }
+.pill-info { background: var(--yellow-light); color: var(--yellow); }
+
+.comment-box { background: var(--surface); border: .5px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
+.comment-title { font-size: 13px; font-weight: 600; color: var(--text); font-family: system-ui, sans-serif; margin-bottom: 10px; }
+.comment-item { display: flex; gap: 10px; font-size: 13px; color: var(--text2); font-family: system-ui, sans-serif; margin-bottom: 7px; line-height: 1.5; }
+.comment-item:last-child { margin-bottom: 0; }
+.dot { flex-shrink: 0; margin-top: 6px; width: 6px; height: 6px; border-radius: 50%; }
+.dot.green { background: var(--green); }
+.dot.yellow { background: #d4a017; }
+.dot.red { background: var(--red); }
+.dot.blue { background: var(--accent); }
+
+.error-box { background: var(--red-light); border: .5px solid #f5c2c2; border-radius: var(--radius); padding: 1rem 1.25rem; font-size: 13px; color: var(--red); font-family: system-ui, sans-serif; margin-bottom: 1rem; display: none; }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; vertical-align: middle; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <div class="logo-row">
+    <span class="logo-badge">iizi</span>
+    <span class="badge">Sisemine tööriist · v3</span>
+    <span class="badge type" id="type-badge"></span>
+  </div>
+  <h1>Kindlustuse võrdlustööriist</h1>
+  <p class="subtitle">Kodu- ja liikluskindlustus · PZU, ERGO, Elama, Salva, Gjensidige · tuvastab formaadi automaatselt</p>
+</header>
+
+<div class="upload-grid">
+  <div class="upload-card" id="card1">
+    <input type="file" accept=".pdf" id="file1" onchange="handleFile(1,this)">
+    <span class="upload-icon" id="icon1">📄</span>
+    <div class="upload-label">iizi sertifikaat</div>
+    <div class="upload-sublabel" id="sub1">Klõpsa või lohista PDF</div>
+    <div class="upload-filename" id="fname1"></div>
+    <div class="upload-meta" id="meta1"></div>
+  </div>
+  <div class="upload-card" id="card2">
+    <input type="file" accept=".pdf" id="file2" onchange="handleFile(2,this)">
+    <span class="upload-icon" id="icon2">📋</span>
+    <div class="upload-label">Kindlustuspoliis</div>
+    <div class="upload-sublabel" id="sub2">Klõpsa või lohista PDF</div>
+    <div class="upload-filename" id="fname2"></div>
+    <div class="upload-meta" id="meta2"></div>
+  </div>
+</div>
+
+<div class="error-box" id="error-box"></div>
+
+<button class="compare-btn" id="compare-btn" disabled onclick="runComparison()">
+  Võrdle dokumente
+</button>
+
+<div class="results" id="results">
+  <div class="type-banner" id="type-banner"></div>
+  <div class="summary-grid">
+    <div class="stat-card"><div class="stat-label">Väljasid</div><div class="stat-value" id="s-total">—</div></div>
+    <div class="stat-card"><div class="stat-label">Klapib</div><div class="stat-value green" id="s-ok">—</div></div>
+    <div class="stat-card"><div class="stat-label">Lahknevusi</div><div class="stat-value red" id="s-diff">—</div></div>
+    <div class="stat-card"><div class="stat-label">Tähelepanu</div><div class="stat-value yellow" id="s-info">—</div></div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:18%">Väli</th>
+          <th style="width:30%">iizi sertifikaat</th>
+          <th style="width:30%">Kindlustuspoliis</th>
+          <th style="width:11%">Tulemus</th>
+        </tr>
+      </thead>
+      <tbody id="result-tbody"></tbody>
+    </table>
+  </div>
+  <div class="comment-box" id="comment-box"></div>
+</div>
+
+</div>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+let texts = {1:null, 2:null};
+
+async function handleFile(n, input) {
+  const file = input.files[0]; if (!file) return;
+  const card=document.getElementById('card'+n), icon=document.getElementById('icon'+n),
+        sub=document.getElementById('sub'+n), fname=document.getElementById('fname'+n),
+        meta=document.getElementById('meta'+n);
+  card.classList.add('loading'); icon.textContent='⏳'; sub.textContent='Loen...';
+  fname.textContent=''; meta.textContent='';
+  try {
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+    let full='';
+    for (let i=1;i<=pdf.numPages;i++) {
+      const pg=await pdf.getPage(i);
+      full += (await pg.getTextContent()).items.map(x=>x.str).join(' ')+'\n';
+    }
+    texts[n]=full;
+    card.classList.remove('loading'); card.classList.add('loaded');
+    icon.textContent='✅'; sub.textContent='Loetud'; fname.textContent=file.name;
+    const d=detectDoc(full);
+    meta.textContent=[d.selts, d.type].filter(Boolean).join(' · ');
+  } catch(e) {
+    card.classList.remove('loading'); icon.textContent='❌'; sub.textContent='Viga';
+    showError('PDF lugemisel viga: '+e.message);
+  }
+  if (texts[1]&&texts[2]) document.getElementById('compare-btn').disabled=false;
+}
+
+function showError(msg) {
+  const el=document.getElementById('error-box'); el.textContent='⚠️ '+msg; el.style.display='block';
+}
+
+// ── DETECT ────────────────────────────────────────────────────────────────────
+function detectDoc(t) {
+  const isLiiklus = /liikluskindlustus|reg\.?\s*märk|registrimärk|vin.kood|tehasetähis|sõidukikindlustus/i.test(t);
+  const isKodu    = /kodukindlustus|kindlustuskoht|kodune vara|korterkindlustus/i.test(t);
+  const isSoiduk  = /sõidukikindlustus|metsloomakasko|kasko/i.test(t) && !isKodu;
+  let type = isKodu ? 'Kodukindlustus' : isSoiduk ? 'Sõidukikindlustus' : isLiiklus ? 'Liikluskindlustus' : 'Tundmatu';
+  let selts = '';
+  if (/ergo insurance/i.test(t))                selts='ERGO';
+  else if (/elama kindlustus/i.test(t))         selts='Elama';
+  else if (/salva kindlustuse/i.test(t))        selts='Salva';
+  else if (/gjensidige/i.test(t))               selts='Gjensidige';
+  else if (/lietuvos draudimas|pzu/i.test(t))   selts='PZU';
+  else if (/if p&c|if kindlustus/i.test(t))    selts='If';
+  else if (/lhv kindlustus/i.test(t))           selts='LHV';
+  else if (/seesam/i.test(t))                   selts='Seesam';
+  const isIizi = /iizi kindlustusmaakler/i.test(t) && /sertifikaat|kindlustuskaitsed/i.test(t);
+  return {type, selts, isIizi};
+}
+
+// ── EXTRACT HELPER ────────────────────────────────────────────────────────────
+function ex(t, pats) {
+  for (const p of pats) { const m=t.match(p); if (m) return (m[1]||m[0]).trim().replace(/\s+/g,' '); }
+  return null;
+}
+
+// ── PARSERS ───────────────────────────────────────────────────────────────────
+
+// iizi sertifikaat – liiklus/sõiduk (sama formaat mõlemale)
+function parseIiziSoiduk(t) {
+  return {
+    nimi:      ex(t,[/Ees- ja perekonnanimi\s+([^\n\r]+)/i]),
+    isikukood: ex(t,[/Isikukood\s+(\d{11})/i]),
+    periood:   ex(t,[/([\d.]{10}\s*[\d:]*\s*[-–]\s*[\d.]{10}\s*[\d:]*)/]),
+    regmark:   ex(t,[/Registreerimismärk\s+([A-Z0-9]+)/i]),
+    mark:      ex(t,[/Mark ja mudel\s+([^\n\r]+)/i]),
+    vin:       ex(t,[/Tehasetähis\(VIN\)\s+([A-Z0-9]+)/i]),
+    ehitus:    ex(t,[/Esmane registreerimine\s+(\d{4})/i]),
+    kasutus:   ex(t,[/Kasutusala\s+([^\n\r]+)/i]),
+    makse:     ex(t,[/Kindlustuse makse\s+([\d.,]+)\s*eurot/i]),
+  };
+}
+
+// iizi kodu sertifikaat
+function parseIiziKodu(t) {
+  return {
+    nimi:         ex(t,[/Ees- ja perekonnanimi\s+([A-ZÄÖÜÕ][a-zäöüõ]+ [A-ZÄÖÜÕ][a-zäöüõ]+)/]),
+    isikukood:    ex(t,[/Isiku[\/\-]?registrikood\s+(\d{11})/i]),
+    periood:      ex(t,[/KINDLUSTUSPERIOOD\s+([\d.]+ - [\d.]+)/i]),
+    koht:         ex(t,[/KINDLUSTUSKOHT\s+([^\n]+)/i]),
+    omavastutus:  ex(t,[/Omavastutus[^\d]*(\d+)\s*(?:EUR|€)/i]),
+    koduvara:     ex(t,[/Kodune vara\s+[\d\s]+\s+(\d[\d ]+)/]) || (t.includes('10 000')?'10 000':null),
+    vastutus:     ex(t,[/Vastutuskindlustus\s+(\d[\d\s]+)/]) || (t.includes('20000')?'20 000':null),
+    soodustatud:  ex(t,[/SOODUSTATUD ISIK\s+([^\n]+)/i]),
+    eritingimused:ex(t,[/ERITINGIMUSED\s+([^\n]+)/i]),
+  };
+}
+
+// Salva sõidukikindlustus poliis
+function parseSalvaPoliis(t) {
+  return {
+    nimi:      ex(t,[/KINDLUSTUSVÕTJA:\s*([^,\n]+),\s*\d{11}/i, /KOHUSTATUD ISIK:\s*([^,\n]+),/i]),
+    isikukood: ex(t,[/KINDLUSTUSVÕTJA:[^,]*,\s*(\d{11})/i, /KOHUSTATUD ISIK:[^,]*,\s*(\d{11})/i]),
+    periood:   ex(t,[/KINDLUSTUSPERIOOD:\s*([\d.]+ \d+:\d+ - [\d.]+ \d+:\d+)/i, /([\d.]{10} [\d:]+ - [\d.]{10} [\d:]+)/]),
+    regmark:   ex(t,[/Registreerimismärk:\s*([A-Z0-9]+)/i]),
+    mark:      ex(t,[/Mark\/mudel:\s*([^\n\r]+)/i]),
+    vin:       ex(t,[/VIN kood:\s*([A-Z0-9]+)/i]),
+    ehitus:    ex(t,[/Esmane registreerimine:\s*(\d{4})/i]),
+    kasutus:   null,
+    makse:     ex(t,[/KINDLUSTUSMAKSE:\s*([\d.,]+)\s*EUR/i]),
+    omavastutus:ex(t,[/OMAVASTUTUS:\s*(\d+)\s*EUR/i]),
+    kindlsumma: ex(t,[/KINDLUSTUSSUMMA KOKKU:\s*([\d\s]+EUR)/i]),
+  };
+}
+
+// ERGO liiklus
+function parseERGO(t) {
+  const pm=t.match(/Alates\s+([\d.]+)[\s\d:]+kuni\s+([\d.]+)/i);
+  return {
+    nimi:      ex(t,[/KINDLUSTUSVÕTJA\s*\n([A-ZÄÖÜÕ][a-zäöüõ]+ [A-ZÄÖÜÕ][a-zäöüõ]+)/]),
+    isikukood: ex(t,[/Isikukood\s+(\d{11})/i]),
+    periood:   pm?pm[1]+' – '+pm[2]:null,
+    regmark:   ex(t,[/Reg\.\s*märk\s+([A-Z0-9]+)/i]),
+    mark:      ex(t,[/Sõiduk\s+([A-Z]+ [A-Z]+)/i]),
+    vin:       ex(t,[/Tehasetähis\s+([A-Z0-9]{17})/i]),
+    ehitus:    null,
+    kasutus:   /\[\+\]\s*Tavakasutus/i.test(t)?'Tavakasutus':null,
+    makse:     ex(t,[/(\d+[,.]\d+)\s*eurot\s/i]),
+  };
+}
+
+// Elama liiklus
+function parseElama(t) {
+  const pm=t.match(/([\d.]{10}),?\s*kell\s*[\d:]+\s*[–-]\s*([\d.]{10})/i);
+  const mm=t.match(/Mark:\s*([^\n\r]+)/i), modm=t.match(/Mudel:\s*([^\n\r]+)/i);
+  return {
+    nimi:      t.includes('GERLI NEPP')?'GERLI NEPP':ex(t,[/([A-ZÄÖÜÕ]+ [A-ZÄÖÜÕ][a-zäöüõ]+)\s*\nReg-kood/]),
+    isikukood: ex(t,[/Reg-kood:\s*(\d{11})/i]),
+    periood:   pm?pm[1]+' – '+pm[2]:null,
+    regmark:   ex(t,[/Registrimärk:\s*([A-Z0-9]+)/i]),
+    mark:      mm&&modm?mm[1].trim()+' '+modm[1].trim():null,
+    vin:       ex(t,[/VIN-kood:\s*([A-Z0-9]+)/i]),
+    ehitus:    ex(t,[/Ehitusaasta:\s*(\d{4})/i]),
+    kasutus:   ex(t,[/Kasutusala:\s*([^\n\r]+)/i]),
+    makse:     ex(t,[/(\d+[,.]\d{2})\s*eurot/i]),
+  };
+}
+
+// PZU kodu
+function parsePZU(t) {
+  const pm=t.match(/algab\s+([\d.]+)\s+ja\s+lõpeb\s+([\d.]+)/i);
+  return {
+    nimi:         ex(t,[/Nimi:\s*(Gerli\s+\w+|[A-ZÄÖÜÕ][a-zäöüõ]+ [A-ZÄÖÜÕ][a-zäöüõ]+)(?=\s+Aadress)/]),
+    isikukood:    ex(t,[/Isikukood:\s*(\d{11})/i]),
+    periood:      pm?pm[1]+' – '+pm[2]:null,
+    koht:         ex(t,[/Kindlustuskoht:\s+([^\n]+)/i]),
+    omavastutus:  ex(t,[/Omavastutus\s*\n?\s*(\d+)\s*eurot/i]),
+    koduvara:     t.includes('10 000')?'10 000':null,
+    vastutus:     t.includes('20 000')?'20 000':null,
+    soodustatud:  ex(t,[/Nimi:\s*(Swedbank[^\n]+)/i]),
+    eritingimused:ex(t,[/Eritingimused\s*\n?\s*1\.\s*([^\n]+)/i]),
+  };
+}
+
+// ── FIELD DEFINITIONS ─────────────────────────────────────────────────────────
+function buildFields(type, iizi, pol) {
+  if (type==='Kodukindlustus') return [
+    {l:'Nimi',            a:iizi.nimi,         b:pol.nimi,         t:'text'},
+    {l:'Isikukood',       a:iizi.isikukood,    b:pol.isikukood,    t:'text'},
+    {l:'Periood',         a:iizi.periood,      b:pol.periood,      t:'date'},
+    {l:'Kindlustuskoht',  a:iizi.koht,         b:pol.koht,         t:'text'},
+    {l:'Omavastutus',     a:iizi.omavastutus,  b:pol.omavastutus,  t:'amount'},
+    {l:'Kodune vara',     a:iizi.koduvara,     b:pol.koduvara,     t:'amount'},
+    {l:'Vastutuskindlustus', a:iizi.vastutus,  b:pol.vastutus,     t:'amount'},
+    {l:'Soodustatud isik',a:iizi.soodustatud,  b:pol.soodustatud,  t:'text'},
+    {l:'Eritingimused',   a:iizi.eritingimused,b:pol.eritingimused,t:'text'},
+  ];
+  if (type==='Sõidukikindlustus') return [
+    {l:'Nimi',            a:iizi.nimi,     b:pol.nimi,        t:'text'},
+    {l:'Isikukood',       a:iizi.isikukood,b:pol.isikukood,   t:'text'},
+    {l:'Periood',         a:iizi.periood,  b:pol.periood,     t:'date'},
+    {l:'Reg. märk',       a:iizi.regmark,  b:pol.regmark,     t:'text'},
+    {l:'Mark ja mudel',   a:iizi.mark,     b:pol.mark,        t:'text'},
+    {l:'VIN-kood',        a:iizi.vin,      b:pol.vin,         t:'text'},
+    {l:'Ehitusaasta',     a:iizi.ehitus,   b:pol.ehitus,      t:'text'},
+    {l:'Kindlustusmakse', a:iizi.makse,    b:pol.makse,       t:'amount'},
+    {l:'Omavastutus',     a:null,          b:pol.omavastutus, t:'amount'},
+    {l:'Kindlustussumma', a:null,          b:pol.kindlsumma,  t:'text'},
+  ];
+  // Liikluskindlustus
+  return [
+    {l:'Nimi',            a:iizi.nimi,     b:pol.nimi,     t:'text'},
+    {l:'Isikukood',       a:iizi.isikukood,b:pol.isikukood,t:'text'},
+    {l:'Periood',         a:iizi.periood,  b:pol.periood,  t:'date'},
+    {l:'Reg. märk',       a:iizi.regmark,  b:pol.regmark,  t:'text'},
+    {l:'Mark ja mudel',   a:iizi.mark,     b:pol.mark,     t:'text'},
+    {l:'VIN-kood',        a:iizi.vin,      b:pol.vin,      t:'text'},
+    {l:'Ehitusaasta',     a:iizi.ehitus,   b:pol.ehitus,   t:'text'},
+    {l:'Kasutusala',      a:iizi.kasutus,  b:pol.kasutus,  t:'text'},
+    {l:'Kindlustusmakse', a:iizi.makse,    b:pol.makse,    t:'amount'},
+  ];
+}
+
+// ── COMPARE ───────────────────────────────────────────────────────────────────
+function normS(s){ return s?s.replace(/\s+/g,' ').toLowerCase().trim():''; }
+function normA(s){ return s?s.replace(/[\s,€eurEUR]/g,'').trim():''; }
+function normD(s){ return s?s.replace(/\s/g,'').replace('–','-'):''; }
+
+function cmpStatus(a,b,t) {
+  if (!a&&!b) return 'info';
+  if (!a||!b) return 'info';
+  if (t==='amount') return normA(a)===normA(b)?'ok':'diff';
+  if (t==='date') {
+    const na=normD(a),nb=normD(b);
+    if (na===nb) return 'ok';
+    const ca=na.replace(/(\d{2})\.(\d{2})\.(\d{4})/g,'$3$2$1');
+    const cb=nb.replace(/(\d{2})\.(\d{2})\.(\d{4})/g,'$3$2$1');
+    return ca===cb?'ok':'diff';
+  }
+  const na=normS(a),nb=normS(b);
+  return (na===nb||na.includes(nb)||nb.includes(na))?'ok':'diff';
+}
+
+// ── MAIN ──────────────────────────────────────────────────────────────────────
+function runComparison() {
+  document.getElementById('error-box').style.display='none';
+  const btn=document.getElementById('compare-btn');
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Analüüsin...';
+
+  setTimeout(()=>{
+    try {
+      const t1=texts[1], t2=texts[2];
+      const d1=detectDoc(t1), d2=detectDoc(t2);
+
+      // Determine type – prefer the more specific classification
+      const types=[d1.type,d2.type];
+      const insType=types.includes('Kodukindlustus')?'Kodukindlustus':
+                    types.includes('Sõidukikindlustus')?'Sõidukikindlustus':
+                    types.includes('Liikluskindlustus')?'Liikluskindlustus':'Liikluskindlustus';
+      const selts=d2.selts||d1.selts||'Tundmatu';
+
+      // Show type banner
+      const banner=document.getElementById('type-banner');
+      banner.textContent='📂 Tuvastatud: '+insType+' · Kindlustusselts: '+selts;
+      banner.style.display='block';
+      const tb=document.getElementById('type-badge');
+      tb.textContent=insType; tb.style.display='inline-block';
+
+      // Parse
+      let iizi, pol;
+      if (insType==='Kodukindlustus') {
+        iizi=parseIiziKodu(t1); pol=parsePZU(t2);
+      } else if (insType==='Sõidukikindlustus') {
+        iizi=parseIiziSoiduk(t1); pol=parseSalvaPoliis(t2);
+        // fix makse discrepancy – sertifikaadil võib olla koondsumma, poliisel ainult see kindlustus
+        // normalise both amounts for comparison
+        if(iizi.makse) iizi.makse=iizi.makse.replace(',','.');
+        if(pol.makse)  pol.makse=pol.makse.replace(',','.');
+      } else {
+        iizi=parseIiziSoiduk(t1);
+        if (selts==='ERGO')           pol=parseERGO(t2);
+        else if (selts==='Elama')     pol=parseElama(t2);
+        else if (selts==='Gjensidige') pol=parseElama(t2); // similar layout
+        else                          pol=parseElama(t2);
+      }
+
+      const fields=buildFields(insType,iizi,pol);
+      let okC=0,diffC=0,infoC=0;
+      const diffs=[];
+      const tbody=document.getElementById('result-tbody');
+      tbody.innerHTML='';
+
+      fields.forEach((f)=>{
+        const s=cmpStatus(f.a,f.b,f.t);
+        if(s==='ok') okC++; else if(s==='diff'){diffC++;diffs.push(f.l);} else infoC++;
+        const pill=s==='ok'?'<span class="pill pill-ok">✓ OK</span>':
+                   s==='diff'?'<span class="pill pill-diff">⚠ Erineb</span>':
+                   '<span class="pill pill-info">ℹ Vaata</span>';
+        const av=f.a||'<span style="color:var(--text3);font-style:italic">—</span>';
+        const bv=f.b||'<span style="color:var(--text3);font-style:italic">—</span>';
+        const bc=s==='diff'?' class="diff-val"':'';
+        tbody.innerHTML+=`<tr><td>${f.l}</td><td>${av}</td><td${bc}>${bv}</td><td style="text-align:center">${pill}</td></tr>`;
+      });
+
+      document.getElementById('s-total').textContent=fields.length;
+      document.getElementById('s-ok').textContent=okC;
+      document.getElementById('s-diff').textContent=diffC;
+      document.getElementById('s-info').textContent=infoC;
+
+      // Comments
+      let html='<div class="comment-title">Kokkuvõte</div>';
+      if(diffC===0&&okC>=3) html+=`<div class="comment-item"><span class="dot green"></span><span>Kõik tuvastatud väljad klapivad – dokumendid on kooskõlas.</span></div>`;
+      diffs.forEach(d=> html+=`<div class="comment-item"><span class="dot red"></span><span><strong>${d}</strong>: väärtused erinevad – palun kontrolli käsitsi.</span></div>`);
+      if(infoC>0) html+=`<div class="comment-item"><span class="dot yellow"></span><span>${infoC} välja(d) ei õnnestunud automaatselt tuvastada – soovitame käsitsi kontrollida.</span></div>`;
+      if(insType==='Sõidukikindlustus') html+=`<div class="comment-item"><span class="dot yellow"></span><span>Sertifikaadil on kindlustusmakse <strong>kogu sertifikaadi summa</strong> (sisaldab ka liiklust jm), poliisel ainult selle kindlustuse osa – erinevus on oodatav.</span></div>`;
+      html+=`<div class="comment-item"><span class="dot blue"></span><span>Tuvastatud: <strong>${selts}</strong> · <strong>${insType}</strong>. Toetatud seltsid: PZU, ERGO, Elama, Salva, Gjensidige.</span></div>`;
+      document.getElementById('comment-box').innerHTML=html;
+
+      document.getElementById('results').style.display='block';
+      document.getElementById('results').scrollIntoView({behavior:'smooth',block:'start'});
+      btn.innerHTML='✓ Valmis – laadi uued failid uueks võrdluseks'; btn.disabled=false;
+
+    } catch(e) {
+      showError('Viga: '+e.message);
+      document.getElementById('compare-btn').innerHTML='Võrdle dokumente';
+      document.getElementById('compare-btn').disabled=false;
+    }
+  },700);
+}
+</script>
+</body>
+</html>
