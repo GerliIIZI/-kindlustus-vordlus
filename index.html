@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IIZI Kindlustuse kvaliteedikontroll v7.0-test</title>
+<title>IIZI Kindlustuse kvaliteedikontroll v7.1-test</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -99,7 +99,7 @@ td.diff-val { color: var(--red) !important; }
 <header>
   <div class="logo-row">
     <span class="logo-badge">iizi</span>
-    <span class="badge">KVT · v7.0-test</span>
+    <span class="badge">KVT · v7.1-test</span>
     <span class="badge type" id="type-badge"></span>
   </div>
   <h1>Kindlustuse võrdlustööriist</h1>
@@ -245,18 +245,27 @@ function extractPeriod(t){
   return ex(t,[/KINDLUSTUSPERIOOD\s+([\d.]{10}\s*[-–]\s*[\d.]{10})/i,/([\d.]{10}\s*[\d:]*\s*[-–]\s*[\d.]{10}\s*[\d:]*)/]);
 }
 
+function valueBetween(t, labels, stopLabels, maxLen=180) {
+  const labelPart=labels.map(x=>x.source||x).join('|');
+  const stopPart=stopLabels.map(x=>x.source||x).join('|');
+  const re=new RegExp('(?:'+labelPart+')\\s*[:\\-]?\\s*([\\s\\S]{1,'+maxLen+'}?)(?=\\s+(?:'+stopPart+')\\b|$)','i');
+  const m=t.match(re);
+  return m?m[1].replace(/\s+/g,' ').trim():null;
+}
 function parseIiziSoiduk(t) {
-  const mm=ex(t,[/Mark ja mudel\s+([^\n\r]+)/i]);
+  const markModel=valueBetween(t,[/Mark ja mudel/i],[/Tehasetähis/i,/VIN/i,/Esmane registreerimine/i,/Sõiduki liik/i,/Kasutusala/i],100);
   return {
+    poliisinr: ex(t,[/Poliis(?:i)?\s*(?:nr|number)\s*[:\-]?\s*([A-Z0-9-]{5,})/i,/Sertifikaadi\s*(?:nr|number)\s*[:\-]?\s*([A-Z0-9-]{5,})/i]),
     nimi:      extractIiziName(t),
     isikukood: extractIdCode(t),
     periood:   extractPeriod(t),
-    regmark:   ex(t,[/Registreerimismärk\s+([A-Z0-9-]+)/i,/Reg\.?\s*märk\s+([A-Z0-9-]+)/i]),
-    mark:      mm,
-    vin:       ex(t,[/Tehasetähis\s*\(?VIN\)?\s+([A-Z0-9]+)/i,/VIN-?kood\s+([A-Z0-9]+)/i]),
-    ehitus:    ex(t,[/Esmane registreerimine\s+(\d{4})/i,/Ehitusaasta\s+(\d{4})/i]),
-    kasutus:   ex(t,[/Kasutusala\s+([^\n\r]+)/i]),
-    makse:     ex(t,[/Kindlustuse makse\s+([\d.,]+)\s*eurot/i]),
+    regmark:   ex(t,[/Registreerimismärk\s*[:\-]?\s*([A-Z0-9-]+)/i,/Reg\.?\s*märk\s*[:\-]?\s*([A-Z0-9-]+)/i]),
+    mark:      markModel,
+    vin:       ex(t,[/Tehasetähis\s*\(?VIN\)?\s*[:\-]?\s*([A-Z0-9]{12,20})/i,/VIN-?kood\s*[:\-]?\s*([A-Z0-9]{12,20})/i]),
+    ehitus:    ex(t,[/Esmane registreerimine\s*[:\-]?\s*(\d{4})/i,/Ehitusaasta\s*[:\-]?\s*(\d{4})/i]),
+    kasutus:   valueBetween(t,[/Kasutusala/i],[/SEADMED/i,/Kindlustuskaitsed/i,/Poliis/i],80),
+    makse:     ex(t,[/Kindlustuse makse\s*[:\-]?\s*([\d.,]+)\s*eurot/i]),
+    omavastutus: ex(t,[/Põhiomavastutus\s*[:\-]?\s*(\d+)\s*(?:€|EUR|eurot?)/i,/Omavastutus\s*[:\-]?\s*(\d+)\s*(?:€|EUR|eurot?)/i]),
   };
 }
 
@@ -324,20 +333,32 @@ function parseERGO(t) {
   };
 }
 
-// Elama liiklus
+// Elama sõidukikindlustuse poliis. PDF.js annab sageli kogu lehe ühe pika reana,
+// seetõttu ei tohi parser sõltuda reavahetustest.
 function parseElama(t) {
-  const pm=t.match(/([\d.]{10}),?\s*kell\s*[\d:]+\s*[–-]\s*([\d.]{10})/i);
-  const mm=t.match(/Mark:\s*([^\n\r]+)/i), modm=t.match(/Mudel:\s*([^\n\r]+)/i);
+  const period=ex(t,[
+    /Kindlustusperiood\s*[:\-]?\s*([\d.]{10}(?:\s*kell\s*[\d:]+)?\s*[–-]\s*[\d.]{10}(?:\s*kell\s*[\d:]+)?)/i,
+    /([\d.]{10})\s*(?:,?\s*kell\s*[\d:]+)?\s*[–-]\s*([\d.]{10})/i
+  ]);
+  const nameBlock=valueBetween(t,[/Kindlustusvõtja/i,/Policyholder/i],[/Reg-?kood/i,/Isikukood/i,/Aadress/i,/Kindlustusperiood/i],100);
+  const mark=valueBetween(t,[/Mark/i,/Sõiduki mark/i],[/Mudel/i,/VIN/i,/Ehitusaasta/i,/Registrimärk/i],60);
+  const model=valueBetween(t,[/Mudel/i],[/VIN/i,/Ehitusaasta/i,/Registrimärk/i,/Kasutusala/i],60);
   return {
-    nimi:      t.includes('GERLI NEPP')?'GERLI NEPP':ex(t,[/([A-ZÄÖÜÕ]+ [A-ZÄÖÜÕ][a-zäöüõ]+)\s*\nReg-kood/]),
-    isikukood: ex(t,[/Reg-kood:\s*(\d{11})/i]),
-    periood:   pm?pm[1]+' – '+pm[2]:null,
-    regmark:   ex(t,[/Registrimärk:\s*([A-Z0-9]+)/i]),
-    mark:      mm&&modm?mm[1].trim()+' '+modm[1].trim():null,
-    vin:       ex(t,[/VIN-kood:\s*([A-Z0-9]+)/i]),
-    ehitus:    ex(t,[/Ehitusaasta:\s*(\d{4})/i]),
-    kasutus:   ex(t,[/Kasutusala:\s*([^\n\r]+)/i]),
-    makse:     ex(t,[/(\d+[,.]\d{2})\s*eurot/i]),
+    poliisinr: ex(t,[
+      /Poliis(?:i)?\s*(?:nr|number)\s*[:\-]?\s*([A-Z0-9-]{5,})/i,
+      /Policy\s*(?:No\.?|number|nr)?\s*[:\-]?\s*([A-Z0-9-]{5,})/i
+    ]),
+    nimi:      cleanPersonName(nameBlock) || cleanPersonName(ex(t,[/\b([A-ZÄÖÜÕŠŽ]{2,}(?:[- ]+[A-ZÄÖÜÕŠŽ]{2,}){1,3})\b/])),
+    isikukood: ex(t,[/Reg-?kood\s*[:\-]?\s*(\d{8,11})/i,/Isikukood\s*[:\-]?\s*(\d{11})/i]),
+    periood:   period,
+    regmark:   ex(t,[/Registrimärk\s*[:\-]?\s*([A-Z0-9-]{3,10})/i,/Reg\.?\s*märk\s*[:\-]?\s*([A-Z0-9-]{3,10})/i]),
+    mark:      [mark,model].filter(Boolean).join(' ') || valueBetween(t,[/Sõiduk/i],[/VIN/i,/Tehasetähis/i,/Ehitusaasta/i],80),
+    vin:       ex(t,[/VIN-?kood\s*[:\-]?\s*([A-Z0-9]{12,20})/i,/Tehasetähis\s*[:\-]?\s*([A-Z0-9]{12,20})/i]),
+    ehitus:    ex(t,[/Ehitusaasta\s*[:\-]?\s*(\d{4})/i,/Esmane registreerimine\s*[:\-]?\s*(\d{4})/i]),
+    kasutus:   valueBetween(t,[/Kasutusala/i],[/Kindlustusmakse/i,/Makse/i,/Omavastutus/i,/Kindlustuskaitsed/i],80),
+    makse:     ex(t,[/Kindlustusmakse\s*[:\-]?\s*([\d ]+[,.]\d{2})\s*(?:€|EUR|eurot?)/i,/Makse\s*[:\-]?\s*([\d ]+[,.]\d{2})\s*(?:€|EUR|eurot?)/i]),
+    omavastutus: ex(t,[/Põhiomavastutus\s*[:\-]?\s*(\d+)\s*(?:€|EUR|eurot?)/i,/Omavastutus\s*[:\-]?\s*(\d+)\s*(?:€|EUR|eurot?)/i]),
+    kindlsumma: ex(t,[/Kindlustussumma\s*[:\-]?\s*([\d ]+)\s*(?:€|EUR|eurot?)/i])
   };
 }
 
@@ -379,7 +400,7 @@ function buildFields(type, iizi, pol) {
     {l:'VIN-kood',        a:iizi.vin,      b:pol.vin,         t:'text'},
     {l:'Ehitusaasta',     a:iizi.ehitus,   b:pol.ehitus,      t:'text'},
     {l:'Kindlustusmakse', a:iizi.makse,    b:pol.makse,       t:'amount'},
-    {l:'Omavastutus',     a:null,          b:pol.omavastutus, t:'amount'},
+    {l:'Omavastutus',     a:iizi.omavastutus,b:pol.omavastutus, t:'amount'},
     {l:'Kindlustussumma', a:null,          b:pol.kindlsumma,  t:'text'},
   ];
   // Liikluskindlustus
