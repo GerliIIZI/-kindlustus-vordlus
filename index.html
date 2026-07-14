@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IIZI Kindlustuse kvaliteedikontroll v7.1-test</title>
+<title>IIZI Kindlustuse kvaliteedikontroll v7.2-test</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -99,7 +99,7 @@ td.diff-val { color: var(--red) !important; }
 <header>
   <div class="logo-row">
     <span class="logo-badge">iizi</span>
-    <span class="badge">KVT · v7.1-test</span>
+    <span class="badge">KVT · v7.2-test</span>
     <span class="badge type" id="type-badge"></span>
   </div>
   <h1>Kindlustuse võrdlustööriist</h1>
@@ -224,7 +224,7 @@ function ex(t, pats) {
 // IIZI sertifikaat – universaalsed abifunktsioonid
 function cleanPersonName(v) {
   if (!v) return null;
-  let x=v.replace(/\b(ees-?\s*ja\s*perekonnanimi|nimi|isikukood|e-?post|telefon|aadress)\b/ig,' ')
+  let x=v.replace(/\b(ees-?\s*ja\s*perekonnanimi|nimi|policyholder|kindlustusvõtja|isikukood|isiku-?\/?registrikood|e-?post|telefon|aadress)\b/ig,' ')
          .replace(/\b\d{11}\b/g,' ')
          .replace(/[|:;]+/g,' ')
          .replace(/\s+/g,' ').trim();
@@ -232,6 +232,12 @@ function cleanPersonName(v) {
   return m?m[1].trim():null;
 }
 function extractIiziName(t){
+  const direct=ex(t,[
+    /KINDLUSTUSVÕTJA\s+Nimi\s+([A-ZÄÖÜÕŠŽ][A-Za-zÄÖÜÕŠŽäöüõšž-]+\s+[A-ZÄÖÜÕŠŽ][A-Za-zÄÖÜÕŠŽäöüõšž-]+)(?=\s+(?:Policyholder|Isiku|SOODUSTATUD|Beneficiary))/i,
+    /Kindlustusvõtja\s*[:\-]?\s*Nimi\s*[:\-]?\s*([A-ZÄÖÜÕŠŽ][A-Za-zÄÖÜÕŠŽäöüõšž-]+\s+[A-ZÄÖÜÕŠŽ][A-Za-zÄÖÜÕŠŽäöüõšž-]+)/i,
+    /Ees-?\s*ja\s*perekonnanimi\s+([A-ZÄÖÜÕŠŽ][A-Za-zÄÖÜÕŠŽäöüõšž-]+\s+[A-ZÄÖÜÕŠŽ][A-Za-zÄÖÜÕŠŽäöüõšž-]+)/i
+  ]);
+  if(direct) return cleanPersonName(direct);
   const label=/Ees-?\s*ja\s*perekonnanimi/i;
   const pos=t.search(label);
   if(pos<0) return null;
@@ -259,7 +265,7 @@ function parseIiziSoiduk(t) {
     nimi:      extractIiziName(t),
     isikukood: extractIdCode(t),
     periood:   extractPeriod(t),
-    regmark:   ex(t,[/Registreerimismärk\s*[:\-]?\s*([A-Z0-9-]+)/i,/Reg\.?\s*märk\s*[:\-]?\s*([A-Z0-9-]+)/i]),
+    regmark:   ex(t,[/Registr(?:eerimis)?märk\s*[:\-]?\s*([A-Z0-9-]+)/i,/KINDLUSTATUD ESE\s+Registrimärk\s+([A-Z0-9-]+)/i,/Reg\.?\s*märk\s*[:\-]?\s*([A-Z0-9-]+)/i]),
     mark:      markModel,
     vin:       ex(t,[/Tehasetähis\s*\(?VIN\)?\s*[:\-]?\s*([A-Z0-9]{12,20})/i,/VIN-?kood\s*[:\-]?\s*([A-Z0-9]{12,20})/i]),
     ehitus:    ex(t,[/Esmane registreerimine\s*[:\-]?\s*(\d{4})/i,/Ehitusaasta\s*[:\-]?\s*(\d{4})/i]),
@@ -336,32 +342,29 @@ function parseERGO(t) {
 // Elama sõidukikindlustuse poliis. PDF.js annab sageli kogu lehe ühe pika reana,
 // seetõttu ei tohi parser sõltuda reavahetustest.
 function parseElama(t) {
-  const period=ex(t,[
-    /Kindlustusperiood\s*[:\-]?\s*([\d.]{10}(?:\s*kell\s*[\d:]+)?\s*[–-]\s*[\d.]{10}(?:\s*kell\s*[\d:]+)?)/i,
-    /([\d.]{10})\s*(?:,?\s*kell\s*[\d:]+)?\s*[–-]\s*([\d.]{10})/i
+  const pm=t.match(/(\d{2}\.\d{2}\.\d{4})(?:,?\s*kell\s*\d{2}:\d{2})?\s*[–-]\s*(\d{2}\.\d{2}\.\d{4})(?:,?\s*kell\s*\d{2}:\d{2})?/i);
+  const vehicle=t.match(/Registrimärk:\s*Mark:\s*Mudel:\s*([A-Z0-9-]{3,10})\s+([A-ZÄÖÜÕŠŽ0-9-]+)\s+([A-ZÄÖÜÕŠŽ0-9-]+)\s+Ehitusaasta:\s*VIN-?kood:\s*Kasutusala:\s*(\d{4})\s+([A-Z0-9]{12,20})\s+([A-ZÄÖÜÕŠŽa-zäöüõšž -]+?)(?=\s+Kindlustuskaitse|\s+Insurance Cover|$)/i);
+  const name=ex(t,[
+    /Kindlustusvõtja\s*\|?\s*Policyholder\s+([A-ZÄÖÜÕŠŽ][A-ZÄÖÜÕŠŽ-]+(?:\s+[A-ZÄÖÜÕŠŽ][A-ZÄÖÜÕŠŽ-]+){1,3})(?=\s+Reg-?kood)/i,
+    /Kindlustusvõtja\s+([A-ZÄÖÜÕŠŽ][A-ZÄÖÜÕŠŽ-]+(?:\s+[A-ZÄÖÜÕŠŽ][A-ZÄÖÜÕŠŽ-]+){1,3})(?=\s+Reg-?kood)/i
   ]);
-  const nameBlock=valueBetween(t,[/Kindlustusvõtja/i,/Policyholder/i],[/Reg-?kood/i,/Isikukood/i,/Aadress/i,/Kindlustusperiood/i],100);
-  const mark=valueBetween(t,[/Mark/i,/Sõiduki mark/i],[/Mudel/i,/VIN/i,/Ehitusaasta/i,/Registrimärk/i],60);
-  const model=valueBetween(t,[/Mudel/i],[/VIN/i,/Ehitusaasta/i,/Registrimärk/i,/Kasutusala/i],60);
+  const mark=ex(t,[/Mark:\s*([A-ZÄÖÜÕŠŽ0-9-]+)/i]);
+  const model=ex(t,[/Mudel:\s*([A-ZÄÖÜÕŠŽ0-9-]+)/i]);
   return {
-    poliisinr: ex(t,[
-      /Poliis(?:i)?\s*(?:nr|number)\s*[:\-]?\s*([A-Z0-9-]{5,})/i,
-      /Policy\s*(?:No\.?|number|nr)?\s*[:\-]?\s*([A-Z0-9-]{5,})/i
-    ]),
-    nimi:      cleanPersonName(nameBlock) || cleanPersonName(ex(t,[/\b([A-ZÄÖÜÕŠŽ]{2,}(?:[- ]+[A-ZÄÖÜÕŠŽ]{2,}){1,3})\b/])),
-    isikukood: ex(t,[/Reg-?kood\s*[:\-]?\s*(\d{8,11})/i,/Isikukood\s*[:\-]?\s*(\d{11})/i]),
-    periood:   period,
-    regmark:   ex(t,[/Registrimärk\s*[:\-]?\s*([A-Z0-9-]{3,10})/i,/Reg\.?\s*märk\s*[:\-]?\s*([A-Z0-9-]{3,10})/i]),
-    mark:      [mark,model].filter(Boolean).join(' ') || valueBetween(t,[/Sõiduk/i],[/VIN/i,/Tehasetähis/i,/Ehitusaasta/i],80),
-    vin:       ex(t,[/VIN-?kood\s*[:\-]?\s*([A-Z0-9]{12,20})/i,/Tehasetähis\s*[:\-]?\s*([A-Z0-9]{12,20})/i]),
-    ehitus:    ex(t,[/Ehitusaasta\s*[:\-]?\s*(\d{4})/i,/Esmane registreerimine\s*[:\-]?\s*(\d{4})/i]),
-    kasutus:   valueBetween(t,[/Kasutusala/i],[/Kindlustusmakse/i,/Makse/i,/Omavastutus/i,/Kindlustuskaitsed/i],80),
-    makse:     ex(t,[/Kindlustusmakse\s*[:\-]?\s*([\d ]+[,.]\d{2})\s*(?:€|EUR|eurot?)/i,/Makse\s*[:\-]?\s*([\d ]+[,.]\d{2})\s*(?:€|EUR|eurot?)/i]),
-    omavastutus: ex(t,[/Põhiomavastutus\s*[:\-]?\s*(\d+)\s*(?:€|EUR|eurot?)/i,/Omavastutus\s*[:\-]?\s*(\d+)\s*(?:€|EUR|eurot?)/i]),
-    kindlsumma: ex(t,[/Kindlustussumma\s*[:\-]?\s*([\d ]+)\s*(?:€|EUR|eurot?)/i])
+    poliisinr: ex(t,[/Kaskokindlustus\s+(\d{8,})/i,/Poliisi\s*nr\s*[:\-]?\s*(\d{8,})/i]),
+    nimi:      cleanPersonName(name),
+    isikukood: ex(t,[/Kindlustusvõtja[\s\S]{0,260}?Reg-?kood:\s*(\d{8,11})/i,/Reg-?kood:\s*(\d{11})/i]),
+    periood:   pm ? pm[1]+' - '+pm[2] : null,
+    regmark:   vehicle ? vehicle[1] : ex(t,[/Registrimärk:\s*([A-Z0-9-]{3,10})/i]),
+    mark:      vehicle ? vehicle[2]+' '+vehicle[3] : ([mark,model].filter(Boolean).join(' ') || null),
+    vin:       vehicle ? vehicle[5] : ex(t,[/VIN-?kood:\s*([A-Z0-9]{12,20})/i]),
+    ehitus:    vehicle ? vehicle[4] : ex(t,[/Ehitusaasta:\s*(\d{4})/i]),
+    kasutus:   vehicle ? vehicle[6].trim() : ex(t,[/Kasutusala:\s*([A-ZÄÖÜÕŠŽa-zäöüõšž -]+)/i]),
+    makse:     ex(t,[/Kindlustusmakse(?:\s*\|\s*Premium)?\s+([\d ]+[,.]\d{2})\s*eurot/i,/Kindlustusmakse\s*[:\-]?\s*([\d ]+[,.]\d{2})\s*(?:€|EUR|eurot?)/i]),
+    omavastutus: ex(t,[/Põhiomavastutus\s+(\d+)\s*eurot/i,/Põhiomavastutus\s*[:\-]?\s*(\d+)\s*(?:€|EUR|eurot?)/i]),
+    kindlsumma: ex(t,[/Kindlustatud ese\s+Kindlustatud turuhinnas/i]) ? 'Turuväärtus' : null
   };
 }
-
 // PZU kodu
 function parsePZU(t) {
   const pm=t.match(/algab\s+([\d.]+)\s+ja\s+lõpeb\s+([\d.]+)/i);
@@ -439,6 +442,7 @@ function tokenSimilarity(a,b){
 function cmpStatus(a,b,t,label='') {
   if (!a&&!b) return 'info';
   if (!a||!b) return 'info';
+  if (/kindlustusmakse/i.test(label)) return normA(a)===normA(b)?'ok':'info';
   if (t==='amount') return normA(a)===normA(b)?'ok':'diff';
   if (t==='date') return normD(a)===normD(b)?'ok':'diff';
   if (/nimi/i.test(label)) return normName(a)===normName(b)?'ok':'diff';
@@ -496,9 +500,12 @@ function runComparison() {
         if (selts==='LHV') pol=parseLHVKodu(t2);
         else pol=parsePZU(t2);
       } else if (insType==='Sõidukikindlustus') {
-        iizi=parseIiziSoiduk(t1); pol=parseSalvaPoliis(t2);
-        // fix makse discrepancy – sertifikaadil võib olla koondsumma, poliisel ainult see kindlustus
-        // normalise both amounts for comparison
+        iizi=parseIiziSoiduk(t1);
+        if (selts==='Elama') pol=parseElama(t2);
+        else if (selts==='Salva') pol=parseSalvaPoliis(t2);
+        else if (selts==='ERGO') pol=parseERGO(t2);
+        else pol=parseElama(t2);
+        // Sertifikaadil võib olla koondsumma, poliisil ainult selle toote osa.
         if(iizi.makse) iizi.makse=iizi.makse.replace(',','.');
         if(pol.makse)  pol.makse=pol.makse.replace(',','.');
       } else {
