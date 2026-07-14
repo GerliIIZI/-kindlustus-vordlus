@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IIZI Kindlustuse kvaliteedikontroll v7.3-test</title>
+<title>IIZI Kindlustuse kvaliteedikontroll v7.4-test</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -99,7 +99,7 @@ td.diff-val { color: var(--red) !important; }
 <header>
   <div class="logo-row">
     <span class="logo-badge">iizi</span>
-    <span class="badge">KVT · v7.3-test</span>
+    <span class="badge">KVT · v7.4-test</span>
     <span class="badge type" id="type-badge"></span>
   </div>
   <h1>Kindlustuse võrdlustööriist</h1>
@@ -258,6 +258,30 @@ function valueBetween(t, labels, stopLabels, maxLen=180) {
   const m=t.match(re);
   return m?m[1].replace(/\s+/g,' ').trim():null;
 }
+function extractRegistrationMark(t) {
+  // PDF.js may return table text in either row order
+  // ("Registrimärk 007BVS") or column order
+  // ("Registrimärk Mark ja mudel ... 007BVS TOYOTA AURIS").
+  const direct=ex(t,[
+    /Registr(?:eerimis)?märk\s*[:\-]?\s*([A-Z0-9-]{3,10})(?=\s+(?:Insured vehicle|Mark ja mudel|Mark|Tehasetähis|Esmane registreerimine))/i,
+    /Reg\.?\s*märk\s*[:\-]?\s*([A-Z0-9-]{3,10})/i
+  ]);
+  if (direct && /[A-ZÄÖÜÕŠŽ]/i.test(direct) && /\d/.test(direct)) return direct;
+
+  const label=/Registr(?:eerimis)?märk/i.exec(t);
+  if (!label) return null;
+  const window=t.slice(label.index, label.index+420).toUpperCase();
+  const candidates=window.match(/\b[A-Z0-9-]{3,10}\b/g) || [];
+  const excluded=new Set(['REGISTRIMÄRK','REGISTREERIMISMÄRK','MARK','MUDEL','VIN','ESE','INSURED','VEHICLE','M1','M1G']);
+  for (const candidate of candidates) {
+    if (excluded.has(candidate)) continue;
+    if (!/[A-ZÄÖÜÕŠŽ]/.test(candidate) || !/\d/.test(candidate)) continue;
+    if (/^\d{4}$/.test(candidate)) continue;
+    return candidate;
+  }
+  return null;
+}
+
 function parseIiziSoiduk(t) {
   const markModel=valueBetween(t,[/Mark ja mudel/i],[/Tehasetähis/i,/VIN/i,/Esmane registreerimine/i,/Sõiduki liik/i,/Kasutusala/i],100);
   return {
@@ -265,7 +289,7 @@ function parseIiziSoiduk(t) {
     nimi:      extractIiziName(t),
     isikukood: extractIdCode(t),
     periood:   extractPeriod(t),
-    regmark:   ex(t,[/Registr(?:eerimis)?märk\s*[:\-]?\s*([A-Z0-9-]{3,10})(?=\s+(?:Insured vehicle|Mark ja mudel|Mark|Tehasetähis))/i,/KINDLUSTATUD ESE[\s\S]{0,120}?Registrimärk\s*[:\-]?\s*([A-Z0-9-]{3,10})/i,/Reg\.?\s*märk\s*[:\-]?\s*([A-Z0-9-]{3,10})/i]),
+    regmark:   extractRegistrationMark(t),
     mark:      markModel,
     vin:       ex(t,[/Tehasetähis\s*\(?VIN\)?\s*[:\-]?\s*([A-Z0-9]{12,20})/i,/VIN-?kood\s*[:\-]?\s*([A-Z0-9]{12,20})/i]),
     ehitus:    ex(t,[/Esmane registreerimine\s*[:\-]?\s*(\d{4})/i,/Ehitusaasta\s*[:\-]?\s*(\d{4})/i]),
