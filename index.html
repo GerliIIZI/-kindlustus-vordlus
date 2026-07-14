@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IIZI Kindlustuse kvaliteedikontroll v7.6-test</title>
+<title>IIZI Kindlustuse kvaliteedikontroll v7.7-test</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -99,7 +99,7 @@ td.diff-val { color: var(--red) !important; }
 <header>
   <div class="logo-row">
     <span class="logo-badge">iizi</span>
-    <span class="badge">KVT · v7.6-test</span>
+    <span class="badge">KVT · v7.7-test</span>
     <span class="badge type" id="type-badge"></span>
   </div>
   <h1>Kindlustuse võrdlustööriist</h1>
@@ -388,13 +388,35 @@ function parseERGO(t) {
 
 // Elama sõidukikindlustuse poliis. PDF.js annab sageli kogu lehe ühe pika reana,
 // seetõttu ei tohi parser sõltuda reavahetustest.
+function extractElamaPolicyholderName(t) {
+  const text=(t||'').replace(/\u00a0/g,' ');
+  const start=text.search(/Kindlustusvõtja\s*(?:\|\s*Policyholder)?/i);
+  if(start>=0){
+    const tail=text.slice(start);
+    const endMatch=tail.slice(1).search(/Soodustatud\s+isik|Beneficiary\s*\/\s*Owner|Kindlustusandja\s*(?:\|\s*Insurer)?/i);
+    const block=endMatch>=0 ? tail.slice(0,endMatch+1) : tail.slice(0,900);
+    const cleaned=block
+      .replace(/Kindlustusvõtja\s*(?:\|\s*Policyholder)?/ig,' ')
+      .replace(/e-?mail\s*:[^\n]*/ig,' ')
+      .replace(/tel\s*:[^\n]*/ig,' ')
+      .replace(/Aadress\s*:[^\n]*/ig,' ')
+      .replace(/Reg-?kood\s*:[^\n]*/ig,' ');
+    const candidates=cleaned.match(/\b[A-ZÄÖÜÕŠŽ][A-ZÄÖÜÕŠŽ-]{1,}(?:\s+[A-ZÄÖÜÕŠŽ][A-ZÄÖÜÕŠŽ-]{1,}){1,3}\b/g)||[];
+    const bad=/^(KINDLUSTUSVÕTJA|POLICYHOLDER|OSAPOOLED|PARTIES|ELAMA KINDLUSTUS AS|IIZI KINDLUSTUSMAAKLER AS)$/i;
+    const found=candidates.find(x=>!bad.test(x.trim()) && !/\b(?:AS|OÜ)\b/.test(x));
+    if(found) return cleanPersonName(found);
+  }
+  const fallback=ex(text,[
+    /Kindlustusvõtja[\s\S]{0,500}?\b([A-ZÄÖÜÕŠŽ][A-ZÄÖÜÕŠŽ-]+(?:\s+[A-ZÄÖÜÕŠŽ][A-ZÄÖÜÕŠŽ-]+){1,3})\b[\s\S]{0,180}?Reg-?kood\s*:/i,
+    /\b([A-ZÄÖÜÕŠŽ][A-ZÄÖÜÕŠŽ-]+\s+[A-ZÄÖÜÕŠŽ][A-ZÄÖÜÕŠŽ-]+)\b\s+(?:e-?mail|Reg-?kood)\s*:/i
+  ]);
+  return cleanPersonName(fallback);
+}
+
 function parseElama(t) {
   const pm=t.match(/(\d{2}\.\d{2}\.\d{4})(?:,?\s*kell\s*\d{2}:\d{2})?\s*[–-]\s*(\d{2}\.\d{2}\.\d{4})(?:,?\s*kell\s*\d{2}:\d{2})?/i);
   const vehicle=t.match(/Registrimärk:\s*Mark:\s*Mudel:\s*([A-Z0-9-]{3,10})\s+([A-ZÄÖÜÕŠŽ0-9-]+)\s+([A-ZÄÖÜÕŠŽ0-9-]+)\s+Ehitusaasta:\s*VIN-?kood:\s*Kasutusala:\s*(\d{4})\s+([A-Z0-9]{12,20})\s+([A-ZÄÖÜÕŠŽa-zäöüõšž -]+?)(?=\s+Kindlustuskaitse|\s+Insurance Cover|$)/i);
-  const name=ex(t,[
-    /Kindlustusvõtja\s*\|?\s*Policyholder\s+([A-ZÄÖÜÕŠŽ][A-ZÄÖÜÕŠŽ-]+(?:\s+[A-ZÄÖÜÕŠŽ][A-ZÄÖÜÕŠŽ-]+){1,3})(?=\s+Reg-?kood)/i,
-    /Kindlustusvõtja\s+([A-ZÄÖÜÕŠŽ][A-ZÄÖÜÕŠŽ-]+(?:\s+[A-ZÄÖÜÕŠŽ][A-ZÄÖÜÕŠŽ-]+){1,3})(?=\s+Reg-?kood)/i
-  ]);
+  const name=extractElamaPolicyholderName(t);
   const mark=ex(t,[/Mark:\s*([A-ZÄÖÜÕŠŽ0-9-]+)/i]);
   const model=ex(t,[/Mudel:\s*([A-ZÄÖÜÕŠŽ0-9-]+)/i]);
   return {
@@ -630,5 +652,3 @@ function runComparison() {
 </script>
 </body>
 </html>
-
-
