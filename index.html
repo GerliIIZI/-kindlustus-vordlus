@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IIZI Kindlustuse kvaliteedikontroll v7.7a-test.</title>
+<title>IIZI Kindlustuse kvaliteedikontroll v7.8-test</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -99,7 +99,7 @@ td.diff-val { color: var(--red) !important; }
 <header>
   <div class="logo-row">
     <span class="logo-badge">iizi</span>
-    <span class="badge">KVT · v7.7-test</span>
+    <span class="badge">KVT · v7.8-test</span>
     <span class="badge type" id="type-badge"></span>
   </div>
   <h1>Kindlustuse võrdlustööriist</h1>
@@ -370,7 +370,32 @@ function parseSalvaPoliis(t) {
   };
 }
 
-// ERGO liiklus
+// ERGO sõidukikindlustuse poliis (kasko). Hoidke see eraldi liikluse parserist,
+// sest ERGO kaskopoliisi ülesehitus on teistsugune.
+function parseERGOKasko(t) {
+  const pm=t.match(/Kindlustusperiood[\s\S]{0,120}?(\d{2}\.\d{2}\.\d{4})\s+kuni\s+(\d{2}\.\d{2}\.\d{4})/i)
+        || t.match(/12\s*kuud\s*\((\d{2}\.\d{2}\.\d{4})\s+kuni\s+(\d{2}\.\d{2}\.\d{4})\)/i);
+  const name=ex(t,[
+    /(?:^|\n)\s*([A-ZÄÖÜÕŠŽ][A-ZÄÖÜÕŠŽ-]+(?:[ \t]+[A-ZÄÖÜÕŠŽ][A-ZÄÖÜÕŠŽ-]+){1,3})[ \t]*,[ \t]*isikukood\s+\d{11}/im,
+    /KINDLUSTUSVÕTJA[\s\S]{0,220}?(?:^|\n)\s*([A-ZÄÖÜÕŠŽ][A-ZÄÖÜÕŠŽ-]+(?:[ \t]+[A-ZÄÖÜÕŠŽ][A-ZÄÖÜÕŠŽ-]+){1,3})[ \t]*,[ \t]*isikukood/im
+  ]);
+  return {
+    poliisinr: ex(t,[/ERGO\s+kaskokindlustuse\s+poliis\s+nr\s+([0-9/]+)/i]),
+    nimi:      cleanPersonName(name),
+    isikukood: ex(t,[/KINDLUSTUSVÕTJA[\s\S]{0,180}?isikukood\s+(\d{11})/i,/isikukood\s+(\d{11})/i]),
+    periood:   pm ? pm[1]+' - '+pm[2] : null,
+    regmark:   ex(t,[/Registreerimismärk\s+([A-Z0-9-]{3,10})/i,/Reg\.\s*märk\s+([A-Z0-9-]{3,10})/i]),
+    mark:      ex(t,[/Teie\s+sõiduk[\s\S]{0,220}?Sõiduk\s+([A-ZÄÖÜÕŠŽ0-9-]+(?:\s+[A-ZÄÖÜÕŠŽ0-9-]+){1,3})(?=\s+Tehasetähis)/i,/Sõiduk\s+([A-ZÄÖÜÕŠŽ0-9-]+(?:\s+[A-ZÄÖÜÕŠŽ0-9-]+){1,3})\s+Tehasetähis/i]),
+    vin:       ex(t,[/Tehasetähis\s+([A-Z0-9]{12,20})/i]),
+    ehitus:    ex(t,[/Ehitusaasta\s*(\d{4})/i]),
+    kasutus:   ex(t,[/Kasutusala\s+([A-ZÄÖÜÕŠŽa-zäöüõšž -]+?)(?=\s+Kindlustussumma|\s+Ärandamisvastane|$)/i]),
+    makse:     ex(t,[/Minu\s+kindlustuse\s+hind\s+on\s+([\d ]+[,.]\d{2})\s*eurot/i,/Kindlustusmakse\s+([\d ]+[,.]\d{2})\s*eurot/i]),
+    omavastutus: ex(t,[/Omavastutus\s+(\d+)\s*eurot/i]),
+    kindlsumma: ex(t,[/Kindlustussumma\s+(Turuväärtus)/i])
+  };
+}
+
+// ERGO liikluskindlustuse varasem parser.
 function parseERGO(t) {
   const pm=t.match(/Alates\s+([\d.]+)[\s\d:]+kuni\s+([\d.]+)/i);
   return {
@@ -572,7 +597,7 @@ function runComparison() {
         iizi=parseIiziSoiduk(t1);
         if (selts==='Elama') pol=parseElama(t2);
         else if (selts==='Salva') pol=parseSalvaPoliis(t2);
-        else if (selts==='ERGO') pol=parseERGO(t2);
+        else if (selts==='ERGO') pol=parseERGOKasko(t2);
         else pol=parseElama(t2);
         // Sertifikaadil võib olla koondsumma, poliisil ainult selle toote osa.
         if(iizi.makse) iizi.makse=iizi.makse.replace(',','.');
