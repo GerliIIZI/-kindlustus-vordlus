@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IIZI Kindlustuse kvaliteedikontroll v7.2-test</title>
+<title>IIZI Kindlustuse kvaliteedikontroll v7.3-test</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -99,7 +99,7 @@ td.diff-val { color: var(--red) !important; }
 <header>
   <div class="logo-row">
     <span class="logo-badge">iizi</span>
-    <span class="badge">KVT · v7.2-test</span>
+    <span class="badge">KVT · v7.3-test</span>
     <span class="badge type" id="type-badge"></span>
   </div>
   <h1>Kindlustuse võrdlustööriist</h1>
@@ -265,13 +265,14 @@ function parseIiziSoiduk(t) {
     nimi:      extractIiziName(t),
     isikukood: extractIdCode(t),
     periood:   extractPeriod(t),
-    regmark:   ex(t,[/Registr(?:eerimis)?märk\s*[:\-]?\s*([A-Z0-9-]+)/i,/KINDLUSTATUD ESE\s+Registrimärk\s+([A-Z0-9-]+)/i,/Reg\.?\s*märk\s*[:\-]?\s*([A-Z0-9-]+)/i]),
+    regmark:   ex(t,[/Registr(?:eerimis)?märk\s*[:\-]?\s*([A-Z0-9-]{3,10})(?=\s+(?:Insured vehicle|Mark ja mudel|Mark|Tehasetähis))/i,/KINDLUSTATUD ESE[\s\S]{0,120}?Registrimärk\s*[:\-]?\s*([A-Z0-9-]{3,10})/i,/Reg\.?\s*märk\s*[:\-]?\s*([A-Z0-9-]{3,10})/i]),
     mark:      markModel,
     vin:       ex(t,[/Tehasetähis\s*\(?VIN\)?\s*[:\-]?\s*([A-Z0-9]{12,20})/i,/VIN-?kood\s*[:\-]?\s*([A-Z0-9]{12,20})/i]),
     ehitus:    ex(t,[/Esmane registreerimine\s*[:\-]?\s*(\d{4})/i,/Ehitusaasta\s*[:\-]?\s*(\d{4})/i]),
     kasutus:   valueBetween(t,[/Kasutusala/i],[/SEADMED/i,/Kindlustuskaitsed/i,/Poliis/i],80),
     makse:     ex(t,[/Kindlustuse makse\s*[:\-]?\s*([\d.,]+)\s*eurot/i]),
     omavastutus: ex(t,[/Põhiomavastutus\s*[:\-]?\s*(\d+)\s*(?:€|EUR|eurot?)/i,/Omavastutus\s*[:\-]?\s*(\d+)\s*(?:€|EUR|eurot?)/i]),
+    kindlsumma: ex(t,[/Kindlustussumma\s*[:\-]?\s*(Turuväärtus)/i,/Kindlustussumma[\s\S]{0,80}?(Turuväärtus)/i])
   };
 }
 
@@ -404,7 +405,7 @@ function buildFields(type, iizi, pol) {
     {l:'Ehitusaasta',     a:iizi.ehitus,   b:pol.ehitus,      t:'text'},
     {l:'Kindlustusmakse', a:iizi.makse,    b:pol.makse,       t:'amount'},
     {l:'Omavastutus',     a:iizi.omavastutus,b:pol.omavastutus, t:'amount'},
-    {l:'Kindlustussumma', a:null,          b:pol.kindlsumma,  t:'text'},
+    {l:'Kindlustussumma', a:iizi.kindlsumma,b:pol.kindlsumma,  t:'text'},
   ];
   // Liikluskindlustus
   return [
@@ -518,14 +519,17 @@ function runComparison() {
       const fields=buildFields(insType,iizi,pol);
       let okC=0,diffC=0,infoC=0;
       const diffs=[];
+      const infos=[];
       const tbody=document.getElementById('result-tbody');
       tbody.innerHTML='';
 
       fields.forEach((f)=>{
         const s=cmpStatus(f.a,f.b,f.t,f.l);
-        if(s==='ok') okC++; else if(s==='diff'){diffC++;diffs.push(f.l);} else infoC++;
+        if(s==='ok') okC++; else if(s==='diff'){diffC++;diffs.push(f.l);} else {infoC++;infos.push(f.l);}
+        const isPaymentInfo=s==='info' && /kindlustusmakse/i.test(f.l);
         const pill=s==='ok'?'<span class="pill pill-ok">✓ OK</span>':
                    s==='diff'?'<span class="pill pill-diff">⚠ Erineb</span>':
+                   isPaymentInfo?'<span class="pill pill-info">● Kontrolli üle</span>':
                    '<span class="pill pill-info">ℹ Vaata</span>';
         const av=f.a||'<span style="color:var(--text3);font-style:italic">—</span>';
         const bv=f.b||'<span style="color:var(--text3);font-style:italic">—</span>';
@@ -542,14 +546,15 @@ function runComparison() {
       const dt=document.getElementById('decision-title');
       const dr=document.getElementById('decision-reasons');
       decision.className='decision-box';
+      const blockingInfos=infos.filter(x=>!/kindlustusmakse/i.test(x));
       if(diffC>0){
         decision.classList.add('bad');
         dt.textContent='🔴 Poliis ei ole valmis kliendile saatmiseks';
         dr.innerHTML='Parandamist vajab: '+diffs.map(x=>'<strong>'+x+'</strong>').join(', ')+'.';
-      } else if(infoC>0){
+      } else if(blockingInfos.length>0){
         decision.classList.add('warn');
         dt.textContent='🟡 Poliis vajab enne saatmist kontrolli';
-        dr.textContent='Kontrolli käsitsi välju, mida ei õnnestunud kindlalt võrrelda.';
+        dr.textContent='Kontrolli käsitsi: '+blockingInfos.join(', ')+'.';
       } else {
         decision.classList.add('ok');
         dt.textContent='🟢 Poliis valmis kliendile saatmiseks';
@@ -560,8 +565,8 @@ function runComparison() {
       let html='<div class="comment-title">Kokkuvõte</div>';
       if(diffC===0&&okC>=3) html+=`<div class="comment-item"><span class="dot green"></span><span>Kõik tuvastatud väljad klapivad – dokumendid on kooskõlas.</span></div>`;
       diffs.forEach(d=> html+=`<div class="comment-item"><span class="dot red"></span><span><strong>${d}</strong>: väärtused erinevad – palun kontrolli käsitsi.</span></div>`);
-      if(infoC>0) html+=`<div class="comment-item"><span class="dot yellow"></span><span>${infoC} välja(d) ei õnnestunud automaatselt tuvastada – soovitame käsitsi kontrollida.</span></div>`;
-      if(insType==='Sõidukikindlustus') html+=`<div class="comment-item"><span class="dot yellow"></span><span>Sertifikaadil on kindlustusmakse <strong>kogu sertifikaadi summa</strong> (sisaldab ka liiklust jm), poliisel ainult selle kindlustuse osa – erinevus on oodatav.</span></div>`;
+      if(blockingInfos.length>0) html+=`<div class="comment-item"><span class="dot yellow"></span><span>${blockingInfos.length} välja(d) ei õnnestunud automaatselt kindlalt võrrelda – soovitame käsitsi kontrollida.</span></div>`;
+      if(infos.some(x=>/kindlustusmakse/i.test(x))) html+=`<div class="comment-item"><span class="dot yellow"></span><span><strong>Kindlustusmakse:</strong> kontrolli üle. IIZI sertifikaadi summa võib sisaldada maakleritasu või vahendustasu soodustust; erinevus ei ole automaatselt viga.</span></div>`;
       html+=`<div class="comment-item"><span class="dot blue"></span><span>Tuvastatud: <strong>${selts}</strong> · <strong>${insType}</strong>. Toetatud testseltsid: LHV, PZU, ERGO, Elama, Salva, Seesam, Balcia, BTA.</span></div>`;
       document.getElementById('comment-box').innerHTML=html;
 
